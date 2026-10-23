@@ -1,0 +1,82 @@
+# Pocket Harness
+
+A native Android workspace for your own AI provider and GitHub repositories. Kotlin, Jetpack Compose, a single lifecycle-aware view model, coroutines, and OkHttp. Android 8.0+ (API 26); targets Android 16 (API 36).
+
+## Run
+
+1. Open this folder in Android Studio. Use JDK 17 or 21, Android SDK platform 36, and build tools 35.0.0 or newer. The pinned Gradle wrapper downloads Gradle 8.13.
+2. Let Studio create `local.properties`, or set `ANDROID_HOME` to your SDK directory. Do not commit `local.properties`.
+3. Run the `app` configuration on an emulator or a connected Android phone.
+
+PowerShell:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+adb install -r .\app\build\outputs\apk\debug\app-debug.apk
+adb shell am start -n dev.pocketharness/.MainActivity
+```
+
+macOS / Linux:
+
+```sh
+sh gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+This is a development build, signed with the local Android debug key. No signing credentials, AI keys, or GitHub tokens are included.
+
+## Use
+
+- **Settings:** enter an HTTPS Chat Completions base URL, exact model ID, and your API key. The app appends `/chat/completions`; for DeepSeek use `https://api.deepseek.com`. The initial model is `deepseek-flash`; all fields are editable. OpenAI-compatible providers are supported; Anthropic Messages, OAuth providers, images, and tool execution are outside this version.
+- **Chat:** send messages, watch the response stream, or cancel. Partial responses remain visible with their status. Conversation history, deletion, and new conversations are in the top bar. Failed or cancelled assistant responses are excluded from subsequent model requests. A long conversation shows an explicit size error rather than silently dropping context.
+- **Code:** add a fine-grained GitHub personal access token, load repositories, and open a branch. Tap folders to browse, then a regular UTF-8 file to preview and select it. Up to six files / 120 KiB total can be selected from one repository snapshot. Refreshing a branch clears selection and pending review. Symlinks, submodules, binary files, and large files are rejected.
+- **Propose edits:** select files, describe the desired change in the Chat composer, and tap **Propose edits**. This request generates a separate structured proposal using the instruction and selected files. No repository writes happen during generation. This version modifies selected existing files; it does not create, rename, or delete files.
+- **Review:** inspect Diff, Before, and After for each changed file. Enter a fresh branch name and commit message, check the review acknowledgement, then explicitly tap **Commit to new branch**. The app creates one commit containing all reviewed edits. It does not merge, update the base branch, create a pull request, or overwrite an existing branch. Open the resulting commit in GitHub to continue your normal review process.
+
+For GitHub, choose only the repositories you need. Grant **Metadata: read** and **Contents: read** for browsing; grant **Contents: read and write** for publication. Workflow files may require additional Workflows permission; repository and organization policies still apply. Empty repositories without a commit cannot be browsed. Enterprise hosts and OAuth sign-in are outside this version.
+
+## Review and concurrency
+
+File reads use immutable commit/tree/blob SHAs. The review holds that exact base and original file modes (including executable files). Proposal validation rejects unselected paths, duplicate paths, mixed snapshots, no-op edits, binary content, and oversized output.
+
+Publication checks the base head before any write, verifies the destination branch does not exist, creates a tree based on the original tree and a commit with the original parent, and checks the base head again immediately before creating the new branch. A changed base blocks publication and requires refreshing and regenerating the proposal. Intermediate tree/commit objects may be left unreferenced if a later check fails.
+
+GitHub does not offer an atomic transaction across a base ref and creation of another ref. The base can advance in the final interval; publication still only creates a fresh branch from the reviewed base, and a post-publication check warns the user to compare before merging. No force update or existing-ref update API is used. A lost create-ref response triggers a read-only recovery check; the app never blindly retries a write. Publishing is intentionally not user-cancellable once started. If the process is killed or confirmation is lost, check the named branch in GitHub before trying again.
+
+## Storage and privacy
+
+Settings (including credentials), messages, and attached source snapshots are encrypted using AES-256-GCM with a fresh IV for each save, backed by a non-exportable Android Keystore key. Authenticated data binds each encrypted envelope to its storage filename. AtomicFile protects against interrupted writes. Files are in the app's private `noBackupFilesDir`; backup is disabled. Settings blocks screenshots and recent-app capture while displayed. Other screens can contain sensitive source code, so handle captures accordingly.
+
+No analytics, HTTP logging interceptor, hard-coded credentials, or crash reporting is installed. HTTP error bodies are not shown or logged. HTTPS is required for AI endpoints, cleartext traffic is disabled, and redirects are not followed to prevent forwarding credentials to a new host. The GitHub token only goes to `api.github.com`; AI keys only go to the configured provider. Messages and selected file contents go to that provider. Repository contents are delimited as data, and local validation gates every proposed write.
+
+Streaming text is refreshed at most every 40 ms and checkpointed to encrypted storage about every two seconds. Stopping a stream closes the underlying network call. In-flight messages are marked interrupted on the next launch. Selection, file previews, and pending proposals are session state; proposals must be regenerated after process death. Clearing Android app storage or uninstalling removes access to local encrypted data; keep your credentials elsewhere if you need them again.
+
+## Checks
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
+# On a running emulator / connected test device:
+.\gradlew.bat :app:connectedDebugAndroidTest --no-daemon
+```
+
+Unit tests use a local MockWebServer (including TLS for AI requests), with no real credentials or external repository writes. They exercise SSE parsing, partial responses, cancellation, redirect refusal, sanitized errors, proposal/path/size checks, byte-preserving replacements, Git tree parent/mode preservation, existing-branch refusal, and changing-base scenarios. Instrumentation tests cover native navigation, missing-key states, Keystore encryption, tamper detection, and conversation persistence.
+
+See `VERIFICATION.md` for the actual results and machine-specific limits of this implementation run.
+
+## Project layout
+
+- `data/`: immutable serializable models and Keystore-backed encrypted storage.
+- `network/`: bounded/cancellable HTTP, streaming Chat Completions, and GitHub Git database operations.
+- `review/`: deterministic edit validation and readable diff generation.
+- `ui/`: native Compose screens, light/dark theme, file preview, history, and explicit review approval.
+- `HarnessViewModel.kt`: screen state, persistence, task lifecycle, and orchestration.
+
+## Primary references
+
+- [Android Gradle plugin 8.13 compatibility](https://developer.android.com/build/releases/agp-8-13-0-release-notes)
+- [Compose BOM and compiler setup](https://developer.android.com/develop/ui/compose/bom)
+- [Android cryptography guidance](https://developer.android.com/privacy-and-security/cryptography)
+- [DeepSeek Chat Completions / streaming](https://api-docs.deepseek.com/api/create-chat-completion/)
+- [GitHub Git trees](https://docs.github.com/en/rest/git/trees), [commits](https://docs.github.com/en/rest/git/commits), [references](https://docs.github.com/en/rest/git/refs), and [API version support](https://docs.github.com/en/rest/about-the-rest-api/api-versions)
+
+The GitHub client pins the supported `2022-11-28` REST contract. Dependencies are pinned deliberately; this project does not rely on dynamic version resolution.

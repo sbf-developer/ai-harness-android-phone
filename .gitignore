@@ -1,0 +1,17 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.iml
+.idea/
+captures/
+artifacts/
+.bootstrap/
+hs_err_*.log
+replay_*.log
+*.apk
+*.aab
+*.jks
+*.keystore
+.env
+.env.*
