@@ -45,7 +45,8 @@ object ReviewPolicy {
 
 /** A single exact replacement hunk with shared prefix/suffix folded to three context lines. */
 fun unifiedDiff(path: String, before: String, after: String): String {
-    val a = before.split('\n'); val b = after.split('\n')
+    if (before == after) return ""
+    val a = diffLines(before); val b = diffLines(after)
     var prefix = 0
     while (prefix < minOf(a.size, b.size) && a[prefix] == b[prefix]) prefix++
     var suffix = 0
@@ -53,11 +54,22 @@ fun unifiedDiff(path: String, before: String, after: String): String {
     val start = maxOf(0, prefix - 3)
     val endA = minOf(a.size, a.size - suffix + 3); val endB = minOf(b.size, b.size - suffix + 3)
     return buildString {
-        append("--- a/$path\n+++ b/$path\n@@ -${start + 1},${endA - start} +${start + 1},${endB - start} @@\n")
-        for (i in start until prefix) append(" ${a[i]}\n")
-        for (i in prefix until a.size - suffix) append("-${a[i]}\n")
-        for (i in prefix until b.size - suffix) append("+${b[i]}\n")
-        for (i in a.size - suffix until endA) append(" ${a[i]}\n")
-        if (!before.endsWith('\n') || !after.endsWith('\n')) append("\\ No newline at end of file (see Before / After)\n")
+        append("--- a/$path\n+++ b/$path\n@@ -${if (endA == start) start else start + 1},${endA - start} +${if (endB == start) start else start + 1},${endB - start} @@\n")
+        fun line(prefix: Char, line: DiffLine) {
+            append(prefix).append(line.text).append('\n')
+            if (!line.terminated) append("\\ No newline at end of file\n")
+        }
+        for (i in start until prefix) line(' ', a[i])
+        for (i in prefix until a.size - suffix) line('-', a[i])
+        for (i in prefix until b.size - suffix) line('+', b[i])
+        for (i in a.size - suffix until endA) line(' ', a[i])
     }
+}
+
+private data class DiffLine(val text: String, val terminated: Boolean)
+private fun diffLines(text: String): List<DiffLine> {
+    if (text.isEmpty()) return emptyList()
+    val terminated = text.endsWith('\n')
+    val lines = text.split('\n').let { if (terminated) it.dropLast(1) else it }
+    return lines.mapIndexed { index, line -> DiffLine(line, index < lines.lastIndex || terminated) }
 }

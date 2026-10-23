@@ -43,10 +43,13 @@ data class HarnessState(
     val active get() = conversations.firstOrNull { it.id == activeId }
 }
 
-class HarnessViewModel(application: Application) : AndroidViewModel(application) {
-    private val vault = Vault(application)
-    private val ai = AiClient()
-    private val github = GitHubClient()
+class HarnessViewModel internal constructor(
+    application: Application,
+    private val vault: LocalStore,
+    private val ai: ChatService,
+    private val github: GitHubClient,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, Vault(application), AiClient(), GitHubClient())
     private val mutable = MutableStateFlow(HarnessState())
     val state = mutable.asStateFlow()
     private var work: Job? = null
@@ -89,6 +92,7 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
 
     private suspend fun saveChats() {
         try { vault.saveConversations(state.value.conversations) }
+        catch (error: CancellationException) { throw error }
         catch (_: Exception) { throw UserFacingException("Could not save this conversation on the device. Check available storage.") }
     }
     fun newConversation() = task("Starting conversation", false) {
@@ -136,22 +140,39 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
         val conversation = current.copy(title = if (current.messages.isEmpty()) text.trim().take(48) else current.title,
             updatedAt = System.currentTimeMillis(), messages = history + reply)
         replace(conversation)
-        saveChats()
+        streamReply(conversation.id, reply.id, settings, prompt)
+    }
+    fun retryLastReply() = task("Retrying response") {
+        val current = state.value.active ?: throw UserFacingException("There is no response to retry.")
+        val failed = current.messages.lastOrNull()
+        if (failed?.role != "assistant" || failed.status !in setOf("error", "cancelled", "interrupted"))
+            throw UserFacingException("Only an incomplete last response can be retried.")
+        val settings = state.value.settings
+        if (settings.apiKey.isBlank()) throw UserFacingException("Add your AI API key in Settings first.")
+        val history = current.messages.dropLast(1)
+        if (history.lastOrNull()?.role != "user") throw UserFacingException("The original message could not be found.")
+        val prompt = Prompts.chat(history)
+        val reply = failed.copy(content = "", status = "streaming")
+        replace(current.copy(messages = history + reply, updatedAt = System.currentTimeMillis()))
+        streamReply(current.id, reply.id, settings, prompt)
+    }
+    private suspend fun streamReply(conversationId: String, replyId: String, settings: Settings, prompt: List<AiMessage>) {
         val output = StringBuilder()
         var lastPaint = 0L
         var lastSave = System.currentTimeMillis()
         try {
+            saveChats()
             ai.stream(settings, prompt) { delta ->
                 output.append(delta)
                 val now = System.currentTimeMillis()
-                if (now - lastPaint >= 40) { updateReply(conversation.id, reply.id, output.toString(), "streaming"); lastPaint = now }
+                if (now - lastPaint >= 40) { updateReply(conversationId, replyId, output.toString(), "streaming"); lastPaint = now }
                 if (now - lastSave >= 2000) { saveChats(); lastSave = now }
             }
-            updateReply(conversation.id, reply.id, output.toString(), "complete")
+            updateReply(conversationId, replyId, output.toString(), "complete")
         } catch (error: CancellationException) {
-            updateReply(conversation.id, reply.id, output.toString(), "cancelled"); throw error
+            updateReply(conversationId, replyId, output.toString(), "cancelled"); throw error
         } catch (error: Exception) {
-            updateReply(conversation.id, reply.id, output.toString(), "error"); throw error
+            updateReply(conversationId, replyId, output.toString(), "error"); throw error
         } finally { withContext(NonCancellable) { saveChats() } }
     }
     private fun replace(conversation: Conversation) {
@@ -229,7 +250,7 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
         val draft = state.value.draft ?: throw UserFacingException("Generate and review a proposal first.")
         val result = github.publish(state.value.settings.githubToken, draft, branch.trim(), message)
         mutable.update { it.copy(published = result, draft = null,
-            notice = if (result.baseAdvanced) "Branch created. The base advanced during publication; compare it on GitHub before merging." else "Reviewed changes committed to a new branch.") }
+            notice = if (result.baseAdvanced) "Branch created. The base may have advanced during publication; compare it on GitHub before merging." else "Reviewed changes committed to a new branch.") }
     }
     fun discardDraft() { if (state.value.busy == null) mutable.update { it.copy(draft = null, page = Page.Chat) } }
 }

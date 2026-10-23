@@ -54,6 +54,18 @@ class AiClientTest {
             catch (_: UserFacingException) { }
         }
     }
+    @Test fun tokenLimitPreservesTheFinalContentChunk() = runBlocking {
+        server.enqueue(MockResponse().setBody("data: {\"choices\":[{\"delta\":{\"content\":\"last words\"},\"finish_reason\":\"length\"}]}\n\n"))
+        val output = StringBuilder()
+        try { ai.stream(settings, listOf(AiMessage("user", "hello"))) { output.append(it) }; fail("Token limit accepted as complete") }
+        catch (_: UserFacingException) { }
+        assertEquals("last words", output.toString())
+    }
+    @Test fun fastDeepSeekExtensionDoesNotLeakIntoOtherProviderRequests() {
+        val messages = listOf(AiMessage("user", "hello"))
+        assertTrue(chatRequestBody(Settings(), messages).toString().contains("\"thinking\":{\"type\":\"disabled\"}"))
+        assertFalse(chatRequestBody(settings, messages).containsKey("thinking"))
+    }
     @Test fun cancellationStopsAStalledNetworkCall() = runBlocking {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
         val job = launch(Dispatchers.Default) { ai.stream(settings, listOf(AiMessage("user", "hi"))) {} }

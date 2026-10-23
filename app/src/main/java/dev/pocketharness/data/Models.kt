@@ -13,7 +13,9 @@ data class Settings(
     val model: String = "deepseek-flash",
     val apiKey: String = "",
     val githubToken: String = "",
-)
+) {
+    override fun toString(): String = "Settings(model=$model, credentials=<redacted>)"
+}
 
 @Serializable
 data class Repo(val owner: String, val name: String, val defaultBranch: String, val private: Boolean = false) {

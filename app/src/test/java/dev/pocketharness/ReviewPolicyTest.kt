@@ -58,4 +58,17 @@ class ReviewPolicyTest {
         val diff = unifiedDiff("file.txt", "one\ntwo\nthree\n", "one\nchanged\nthree\n")
         assertTrue(diff.contains("-two\n+changed\n")); assertTrue(diff.contains(" one\n")); assertTrue(diff.contains(" three\n"))
     }
+    @Test fun diffRepresentsEmptyFilesAndFinalNewlineChangesAccurately() {
+        val added = unifiedDiff("empty.txt", "", "hello\n")
+        assertTrue(added.contains("@@ -0,0 +1,1 @@")); assertTrue(added.endsWith("+hello\n"))
+        val newline = unifiedDiff("file.txt", "hello\n", "hello")
+        assertTrue(newline.contains("-hello\n+hello\n\\ No newline at end of file\n"))
+        assertEquals(1, Regex("No newline").findAll(newline).count())
+    }
+    @Test fun settingsAndValidationErrorsDoNotExposeCredentialsOrMislabelTheProvider() {
+        val settings = Settings(apiKey = "private-ai-key", githubToken = "private-github-token")
+        assertFalse(settings.toString().contains(settings.apiKey)); assertFalse(settings.toString().contains(settings.githubToken))
+        val error = dev.pocketharness.network.friendlyError(dev.pocketharness.network.HttpFailure(422))
+        assertTrue(error.contains("model")); assertFalse(error.startsWith("GitHub rejected"))
+    }
 }

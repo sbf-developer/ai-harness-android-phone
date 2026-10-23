@@ -70,4 +70,13 @@ class GitHubClientTest {
             catch (_: UserFacingException) { }
         }
     }
+    @Test fun lostCreateRefResponseIsRecoveredWithoutRetryingTheWrite() = runBlocking {
+        head(); json("{}", 404); json("{\"sha\":\"tree\"}"); json("{\"sha\":\"commit\"}"); head()
+        server.enqueue(MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        head("commit"); head()
+        val result = github.publish("test-token", draft, "harness/change", "Change")
+        assertEquals("commit", result.commitSha)
+        val requests = (1..8).map { server.takeRequest() }
+        assertEquals(1, requests.count { it.method == "POST" && it.path!!.endsWith("/git/refs") })
+    }
 }

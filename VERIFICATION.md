@@ -1,4 +1,4 @@
-# Verification — 24 October 2026
+# Verification — 0.1.1 personal preview (24 October 2026)
 
 ## Build and checks
 
@@ -8,14 +8,15 @@ The final source was checked with:
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --console=plain
 ```
 
-Result: **BUILD SUCCESSFUL**. The final build log is `artifacts/build-verification.log`.
+Result: **BUILD SUCCESSFUL**. The final build log is `artifacts/release-v0.1.1-build.log`. See [REVIEW.md](REVIEW.md) for findings and fixes.
 
 | Check | Result |
 | --- | --- |
-| AI/TLS/SSE/cancellation/error tests | 5 passed |
-| GitHub publication/concurrency/file tests | 6 passed |
-| Edit policy/context/endpoint/diff tests | 7 passed |
-| Total local unit tests | **18 passed, 0 failed** |
+| AI/TLS/SSE/cancellation/error tests | 7 passed |
+| GitHub publication/concurrency/file tests | 7 passed |
+| Chat setup/save/cancel/retry/interruption tests | 7 passed |
+| Edit policy/context/endpoint/diff tests | 9 passed |
+| Total local unit tests | **30 passed, 0 failed** |
 | Android lint | **0 errors, 14 warnings** |
 | Debug application APK | Built |
 | Instrumentation APK | Built |
@@ -27,15 +28,29 @@ The lint warnings are version-update notices for deliberately pinned dependencie
 
 ## Installable artifact
 
-- Stable copy: `artifacts/PocketHarness-debug.apk`
+- Release copy: `artifacts/PocketHarness-0.1.1-debug.apk`
+- Checksum: `artifacts/PocketHarness-0.1.1-debug.apk.sha256`
 - Gradle output: `app/build/outputs/apk/debug/app-debug.apk`
 - Instrumentation output: `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`
 - Application ID: `dev.pocketharness`
-- Version: `0.1.0` (1)
+- Version: `0.1.1` (2)
 - Minimum Android API: 26; target / compile API: 36.
-- SHA-256: `74606530606c7b196a87be1196fd48ffcb0e44362fe9f126c20a60b946bb16aa`
+- APK size: 19,012,068 bytes.
+- Included native architectures: arm64-v8a, armeabi-v7a, x86, x86_64.
+- SHA-256: `ab3257ef769fc65880b20dd4322b615593a743c328fb5b95cef7ac4e86180127`
+- Signing certificate SHA-256: `3f770003c22a1dcf52f797ede1aee4942927be089e2df8f9efaa5c8b0e42a298`.
+- The signing certificate matches the earlier 0.1.0 APK, preserving eligibility for an in-place update from that build.
 
-Signature details are in `artifacts/apk-signature-verification.log`. The Gradle distribution has a checksum pinned in the wrapper properties, obtained from the official Gradle distribution service.
+Signature details are in `artifacts/release-v0.1.1-signature.log`. This is a **debug-signed personal preview**, not a production or Play Store release. The Gradle distribution has a checksum pinned in the wrapper properties, obtained from the official Gradle distribution service.
+
+## Phone delivery
+
+- Tag: `v0.1.1`.
+- [Release page](https://github.com/sbf-developer/ai-harness-android-phone/releases/tag/v0.1.1).
+- [Direct APK download](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.1.1/PocketHarness-0.1.1-debug.apk).
+- [SHA-256 checksum](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.1.1/PocketHarness-0.1.1-debug.apk.sha256).
+
+The repository is public. APKs and checksums are distributed as GitHub Release assets, with no keys, signing keystores, or binary build outputs committed to the source tree. Phone installation and first-use steps are at the top of README.md. Upload and anonymous download verification are performed after source/tag publication; release asset metadata provides the published size and digest.
 
 ## Runtime verification
 

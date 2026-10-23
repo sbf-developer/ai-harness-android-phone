@@ -2,7 +2,18 @@
 
 A native Android workspace for your own AI provider and GitHub repositories. Kotlin, Jetpack Compose, a single lifecycle-aware view model, coroutines, and OkHttp. Android 8.0+ (API 26); targets Android 16 (API 36).
 
-## Run
+## Install on your Android phone
+
+**Requires Android 8.0 or newer.** This is a personal preview, distributed as a **debug-signed APK**, not a Play Store release.
+
+1. On your phone, open the [0.1.1 release](https://github.com/sbf-developer/ai-harness-android-phone/releases/tag/v0.1.1) and download **PocketHarness-0.1.1-debug.apk** from Assets. You can also use the [direct APK download](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.1.1/PocketHarness-0.1.1-debug.apk). The repository is public, so GitHub sign-in is not required.
+2. Open the downloaded APK from your browser's downloads or the Files app. When Android asks, open **Settings**, enable **Allow from this source** for that browser or Files app, then return and tap **Install**. Device wording can vary. You can turn the installation permission off afterward. See [Google's phone-install instructions](https://support.google.com/pixelphone/answer/7391672?hl=en-GB).
+3. Open **Pocket Harness → Settings**. For DeepSeek, keep `https://api.deepseek.com` and `deepseek-flash`, paste your own API key into **AI API key**, then tap **Save settings**. These values are based on [DeepSeek's current API guide](https://api-docs.deepseek.com/). API access and usage belong to your provider account; no credentials or credits are included in this APK.
+4. Return to **Chat**, type a message, and send. **A GitHub token is not needed for ordinary chat.** The GitHub section is optional and only needed for repository features.
+
+The APK and its SHA-256 checksum are release assets, excluded from the source repository. Updates must use the same signing key; the existing local debug key stays private. Uninstalling or clearing app storage removes local settings and conversations. The personal-preview limitations and exact checks are recorded in [VERIFICATION.md](VERIFICATION.md).
+
+## Build from source
 
 1. Open this folder in Android Studio. Use JDK 17 or 21, Android SDK platform 36, and build tools 35.0.0 or newer. The pinned Gradle wrapper downloads Gradle 8.13.
 2. Let Studio create `local.properties`, or set `ANDROID_HOME` to your SDK directory. Do not commit `local.properties`.
@@ -25,15 +36,17 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 This is a development build, signed with the local Android debug key. No signing credentials, AI keys, or GitHub tokens are included.
 
+This first version sends text Chat Completions requests with `stream` and `max_tokens`. Required custom headers, model-specific request formats, and other API families are not configurable.
+
 ## Use
 
-- **Settings:** enter an HTTPS Chat Completions base URL, exact model ID, and your API key. The app appends `/chat/completions`; for DeepSeek use `https://api.deepseek.com`. The initial model is `deepseek-flash`; all fields are editable. OpenAI-compatible providers are supported; Anthropic Messages, OAuth providers, images, and tool execution are outside this version.
-- **Chat:** send messages, watch the response stream, or cancel. Partial responses remain visible with their status. Conversation history, deletion, and new conversations are in the top bar. Failed or cancelled assistant responses are excluded from subsequent model requests. A long conversation shows an explicit size error rather than silently dropping context.
+- **Settings:** enter an HTTPS Chat Completions base URL, exact model ID, and your API key. The app appends `/chat/completions`; for DeepSeek use `https://api.deepseek.com`. The initial model is `deepseek-flash`; all fields are editable. Direct DeepSeek requests disable thinking mode for fast text responses, using its [documented mode switch](https://api-docs.deepseek.com/guides/thinking_mode/). That extension is omitted for other providers. OpenAI-compatible providers are supported; Anthropic Messages, OAuth providers, images, and tool execution are outside this version.
+- **Chat:** send messages, watch the response stream, or cancel. Partial responses remain visible with their status. **Retry response** replaces an incomplete last reply using its original user message and file context, without duplicating that message; retrying is a new provider request. Conversation history, deletion, and new conversations are in the top bar. Failed or cancelled assistant responses are excluded from subsequent model requests. A long conversation shows an explicit size error rather than silently dropping context.
 - **Code:** add a fine-grained GitHub personal access token, load repositories, and open a branch. Tap folders to browse, then a regular UTF-8 file to preview and select it. Up to six files / 120 KiB total can be selected from one repository snapshot. Refreshing a branch clears selection and pending review. Symlinks, submodules, binary files, and large files are rejected.
 - **Propose edits:** select files, describe the desired change in the Chat composer, and tap **Propose edits**. This request generates a separate structured proposal using the instruction and selected files. No repository writes happen during generation. This version modifies selected existing files; it does not create, rename, or delete files.
 - **Review:** inspect Diff, Before, and After for each changed file. Enter a fresh branch name and commit message, check the review acknowledgement, then explicitly tap **Commit to new branch**. The app creates one commit containing all reviewed edits. It does not merge, update the base branch, create a pull request, or overwrite an existing branch. Open the resulting commit in GitHub to continue your normal review process.
 
-For GitHub, choose only the repositories you need. Grant **Metadata: read** and **Contents: read** for browsing; grant **Contents: read and write** for publication. Workflow files may require additional Workflows permission; repository and organization policies still apply. Empty repositories without a commit cannot be browsed. Enterprise hosts and OAuth sign-in are outside this version.
+For optional GitHub access, create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new), choose only the repositories you need, and paste it into the app's Settings. Grant **Metadata: read** and **Contents: read** for browsing; grant **Contents: read and write** for publication. Workflow files may require additional Workflows permission; repository and organization policies still apply. These permissions follow the [GitHub Git tree API requirements](https://docs.github.com/en/rest/git/trees). Empty repositories without a commit cannot be browsed. Enterprise hosts and OAuth sign-in are outside this version.
 
 ## Review and concurrency
 

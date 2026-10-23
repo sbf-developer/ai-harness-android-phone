@@ -17,7 +17,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Versioned AES-GCM envelope. Key material never leaves Android Keystore; files never enter backup. */
-class Vault(context: Context) {
+class Vault(context: Context) : LocalStore {
     private val root = context.noBackupFilesDir
     private val mutex = Mutex()
     private val alias = "pocket-harness-v1"
@@ -55,16 +55,16 @@ class Vault(context: Context) {
         catch (error: Exception) { file.failWrite(stream); throw error }
     }
 
-    suspend fun loadSettings(): Settings = withContext(Dispatchers.IO) { mutex.withLock {
+    override suspend fun loadSettings(): Settings = withContext(Dispatchers.IO) { mutex.withLock {
         read("settings.enc")?.let { AppJson.decodeFromString<Settings>(it) } ?: Settings()
     } }
-    suspend fun saveSettings(settings: Settings) = withContext(Dispatchers.IO) { mutex.withLock {
+    override suspend fun saveSettings(settings: Settings) = withContext(Dispatchers.IO) { mutex.withLock {
         write("settings.enc", AppJson.encodeToString(settings))
     } }
-    suspend fun loadConversations(): List<Conversation> = withContext(Dispatchers.IO) { mutex.withLock {
+    override suspend fun loadConversations(): List<Conversation> = withContext(Dispatchers.IO) { mutex.withLock {
         read("conversations.enc")?.let { AppJson.decodeFromString<List<Conversation>>(it) } ?: emptyList()
     } }
-    suspend fun saveConversations(items: List<Conversation>) = withContext(Dispatchers.IO) { mutex.withLock {
+    override suspend fun saveConversations(items: List<Conversation>) = withContext(Dispatchers.IO) { mutex.withLock {
         write("conversations.enc", AppJson.encodeToString(items))
     } }
     suspend fun clearCredentials() = saveSettings(loadSettings().copy(apiKey = "", githubToken = ""))

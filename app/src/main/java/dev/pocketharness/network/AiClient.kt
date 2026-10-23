@@ -9,6 +9,24 @@ import okhttp3.Request
 
 data class AiMessage(val role: String, val content: String)
 
+interface ChatService {
+    suspend fun stream(settings: Settings, messages: List<AiMessage>, onDelta: suspend (String) -> Unit)
+}
+
+internal fun chatRequestBody(settings: Settings, messages: List<AiMessage>): JsonObject = buildJsonObject {
+    put("model", settings.model)
+    put("stream", true)
+    put("max_tokens", 8192)
+    // DeepSeek enables extended reasoning by default; this app's default is a fast text response.
+    // Keep the extension off other OpenAI-compatible endpoints, which may reject unknown fields.
+    if (settings.endpoint.toHttpUrlOrNull()?.host == "api.deepseek.com") {
+        putJsonObject("thinking") { put("type", "disabled") }
+    }
+    putJsonArray("messages") { messages.forEach { message -> add(buildJsonObject {
+        put("role", message.role); put("content", message.content)
+    }) } }
+}
+
 object ProviderValidation {
     fun endpoint(value: String): String {
         val url = value.trim().toHttpUrlOrNull()
@@ -28,18 +46,11 @@ object ProviderValidation {
     }
 }
 
-class AiClient(private val http: Http = Http()) {
-    suspend fun stream(settings: Settings, messages: List<AiMessage>, onDelta: suspend (String) -> Unit) {
+class AiClient(private val http: Http = Http()) : ChatService {
+    override suspend fun stream(settings: Settings, messages: List<AiMessage>, onDelta: suspend (String) -> Unit) {
         val base = ProviderValidation.endpoint(settings.endpoint)
         if (settings.apiKey.isBlank()) throw UserFacingException("Add your AI API key in Settings first.")
-        val body = buildJsonObject {
-            put("model", settings.model)
-            put("stream", true)
-            put("max_tokens", 8192)
-            putJsonArray("messages") { messages.forEach { message -> add(buildJsonObject {
-                put("role", message.role); put("content", message.content)
-            }) } }
-        }
+        val body = chatRequestBody(settings.copy(endpoint = base), messages)
         val request = Request.Builder().url("$base/chat/completions")
             .header("Authorization", "Bearer ${settings.apiKey}")
             .header("Accept", "text/event-stream").post(jsonBody(body)).build()
@@ -56,16 +67,16 @@ class AiClient(private val http: Http = Http()) {
                 val payload = AppJson.parseToJsonElement(data).jsonObject
                 if (payload["error"] != null) throw UserFacingException("The provider reported a stream error. Try again.")
                 val choice = payload["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: return
-                val reason = choice["finish_reason"]?.jsonPrimitive?.contentOrNull
-                if (reason != null) {
-                    if (reason != "stop") throw UserFacingException("The response ended early ($reason). Try a smaller request.")
-                    stopped = true
-                }
                 val delta = choice["delta"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull.orEmpty()
                 if (delta.isNotEmpty()) {
                     received += delta.length
                     if (received > 256 * 1024) throw UserFacingException("The response exceeded the local size limit.")
                     onDelta(delta)
+                }
+                val reason = choice["finish_reason"]?.jsonPrimitive?.contentOrNull
+                if (reason != null) {
+                    if (reason != "stop") throw UserFacingException("The response ended early. Partial text was kept; retry or try a smaller request.")
+                    stopped = true
                 }
             }
             while (!finished) {

@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.collect
 import dev.pocketharness.*
 import dev.pocketharness.data.*
 import dev.pocketharness.review.unifiedDiff
@@ -48,6 +51,9 @@ fun HarnessApp(vm: HarnessViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     var history by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
+    BackHandler(enabled = state.page == Page.Settings || (state.page == Page.Repositories && state.snapshot == null)) {
+        vm.page(Page.Chat)
+    }
     DisposableEffect(state.page) {
         if (state.page == Page.Settings) activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         else activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -128,8 +134,27 @@ private fun ChatPage(state: HarnessState, vm: HarnessViewModel) {
     }
     val list = rememberLazyListState()
     val last = messages.lastOrNull()
-    LaunchedEffect(last?.id, last?.content?.length) {
-        if (messages.isNotEmpty() && (!list.canScrollForward || list.lastScrolledForward || list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == messages.lastIndex)) list.animateScrollToItem(messages.lastIndex)
+    var followReply by remember { mutableStateOf(true) }
+    val dragging by list.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragging) { if (dragging) followReply = false }
+    LaunchedEffect(last?.id) {
+        followReply = true
+        if (messages.isNotEmpty()) list.scrollToItem(messages.lastIndex)
+    }
+    LaunchedEffect(list) {
+        snapshotFlow { !list.canScrollForward && !list.isScrollInProgress }.collect { atEnd ->
+            if (atEnd) followReply = true
+        }
+    }
+    LaunchedEffect(list, messages.size) {
+        // Follow the measured bottom of a growing reply, including replies taller than the screen.
+        // Jumping to the start of the last item on every token prevents reading long responses.
+        snapshotFlow {
+            val layout = list.layoutInfo
+            val visible = layout.visibleItemsInfo.lastOrNull()
+            if (followReply && !dragging && visible != null && visible.index == messages.lastIndex)
+                maxOf(0, visible.offset + visible.size - layout.viewportEndOffset) else 0
+        }.collect { overflow -> if (overflow > 0) list.scrollBy(overflow.toFloat()) }
     }
     Column(Modifier.fillMaxSize()) {
         if (messages.isEmpty()) {
@@ -148,6 +173,12 @@ private fun ChatPage(state: HarnessState, vm: HarnessViewModel) {
             }
         } else LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             items(messages, key = { it.id }) { MessageCard(it) }
+        }
+        if (last?.role == "assistant" && last.status in setOf("error", "cancelled", "interrupted")) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Uses the original message and files.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = vm::retryLastReply, enabled = state.busy == null) { Text("Retry response") }
+            }
         }
         if (state.selected.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -277,9 +308,9 @@ private fun SettingsPage(state: HarnessState, vm: HarnessViewModel) {
         SecretField(apiKey, { apiKey = it }, "AI API key", ready)
         Text("Your messages and selected file contents are sent to this endpoint. Use a provider you trust.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider()
-        SectionLabel("GITHUB")
+        SectionLabel("GITHUB · OPTIONAL")
         SecretField(token, { token = it }, "Fine-grained personal access token", ready)
-        Text("Choose specific repositories. Contents: read for browsing, read and write for commits. Metadata access is also required. Organization approval may be needed.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Leave empty for ordinary chat. For code, choose specific repositories. Contents: read for browsing, read and write for commits. Metadata access is also required. Organization approval may be needed.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Outlined.Key, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -288,7 +319,7 @@ private fun SettingsPage(state: HarnessState, vm: HarnessViewModel) {
         }
         Button(onClick = { vm.saveSettings(Settings(endpoint, model, apiKey, token)) }, enabled = ready, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Save settings") }
         TextButton(onClick = { clear = true }, enabled = ready && (state.settings.apiKey.isNotEmpty() || state.settings.githubToken.isNotEmpty()), modifier = Modifier.fillMaxWidth()) { Text("Remove saved credentials") }
-        Text("POCKET HARNESS  /  0.1.0", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("POCKET HARNESS  /  ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Remove credentials?") }, text = { Text("You will need to enter your AI key and GitHub token again. Conversations stay on this device.") }, confirmButton = { TextButton(onClick = { vm.clearCredentials(); clear = false }) { Text("Remove") } }, dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
 }
@@ -382,8 +413,8 @@ private fun CodeBlock(text: String, modifier: Modifier = Modifier, diff: Boolean
             } else append(text.ifEmpty { "(empty file)" })
         }
     }
-    SelectionContainer {
-        Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(8.dp)).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
+    SelectionContainer(modifier = modifier) {
+        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(8.dp)).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
             Text(display, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp, softWrap = false)
         }
     }
