@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +50,8 @@ import java.util.Date
 @Composable
 fun HarnessApp(vm: HarnessViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val agent = (LocalContext.current.applicationContext as HarnessApplication).agent
+    val agentState by agent.state.collectAsStateWithLifecycle()
     var history by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
     BackHandler(enabled = state.page == Page.Settings || (state.page == Page.Repositories && state.snapshot == null)) {
@@ -79,6 +82,7 @@ fun HarnessApp(vm: HarnessViewModel) {
             bottomBar = {
                 if (!state.loading && !state.startupError) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     NavigationBarItem(selected = state.page == Page.Chat, onClick = { vm.page(Page.Chat) }, icon = { Icon(Icons.AutoMirrored.Outlined.Chat, null) }, label = { Text("Chat") })
+                    NavigationBarItem(selected = state.page == Page.Agent, onClick = { vm.page(Page.Agent) }, icon = { Icon(Icons.Outlined.Terminal, null) }, label = { Text("Agent") })
                     NavigationBarItem(selected = state.page == Page.Repositories, onClick = { vm.page(Page.Repositories) }, icon = { Icon(Icons.Outlined.FolderOpen, null) }, label = { Text("Code") })
                     if (state.draft != null || state.published != null) NavigationBarItem(selected = state.page == Page.Review, onClick = { vm.page(Page.Review) }, icon = { Icon(Icons.Outlined.Difference, null) }, label = { Text("Review") })
                     NavigationBarItem(selected = state.page == Page.Settings, onClick = { vm.page(Page.Settings) }, icon = { Icon(Icons.Outlined.Tune, null) }, label = { Text("Settings") })
@@ -102,7 +106,8 @@ fun HarnessApp(vm: HarnessViewModel) {
                     else -> when (state.page) {
                         Page.Chat -> ChatPage(state, vm)
                         Page.Repositories -> RepositoriesPage(state, vm)
-                        Page.Settings -> SettingsPage(state, vm)
+                        Page.Settings -> SettingsPage(state, vm, agentState.active)
+                        Page.Agent -> AgentPage(agent, state.settings)
                         Page.Review -> ReviewPage(state, vm)
                     }
                 }
@@ -110,6 +115,7 @@ fun HarnessApp(vm: HarnessViewModel) {
         }
         if (history) HistorySheet(state, onDismiss = { history = false }, onSelect = { vm.selectConversation(it); history = false }, onDelete = vm::deleteConversation)
         state.previewFile?.let { FilePreview(it, state, vm) }
+        AgentApproval(agent, agentState.approval)
     }
 }
 
@@ -292,15 +298,17 @@ private fun RepositoriesPage(state: HarnessState, vm: HarnessViewModel) {
 }
 
 @Composable
-private fun SettingsPage(state: HarnessState, vm: HarnessViewModel) {
+private fun SettingsPage(state: HarnessState, vm: HarnessViewModel, agentActive: Boolean) {
     var endpoint by remember(state.settings) { mutableStateOf(state.settings.endpoint) }
     var model by remember(state.settings) { mutableStateOf(state.settings.model) }
     var apiKey by remember(state.settings) { mutableStateOf(state.settings.apiKey) }
     var token by remember(state.settings) { mutableStateOf(state.settings.githubToken) }
+    var searchKey by remember(state.settings) { mutableStateOf(state.settings.braveSearchKey) }
     var clear by remember { mutableStateOf(false) }
-    val ready = state.busy == null
+    val ready = state.busy == null && !agentActive
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Make it yours.", style = MaterialTheme.typography.headlineSmall)
+        if (agentActive) Text("Stop the agent before changing its credentials.", color = MaterialTheme.colorScheme.primary)
         Text("Connect an OpenAI-compatible Chat Completions provider and your GitHub repositories.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         SectionLabel("AI PROVIDER")
         OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), label = { Text("API base URL") }, supportingText = { Text("HTTPS only. The app appends /chat/completions.") }, singleLine = true, enabled = ready, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
@@ -311,17 +319,22 @@ private fun SettingsPage(state: HarnessState, vm: HarnessViewModel) {
         SectionLabel("GITHUB · OPTIONAL")
         SecretField(token, { token = it }, "Fine-grained personal access token", ready)
         Text("Leave empty for ordinary chat. For code, choose specific repositories. Contents: read for browsing, read and write for commits. Metadata access is also required. Organization approval may be needed.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("This token is for the Code tab. Termux Git uses credentials configured separately in Termux.", style = MaterialTheme.typography.bodySmall)
+        HorizontalDivider()
+        SectionLabel("WEB SEARCH · OPTIONAL")
+        SecretField(searchKey, { searchKey = it }, "Brave Search API key", ready)
+        Text("Enables real web search for the agent through Brave Search. Reading a public HTTPS URL needs no search key. Search queries go to Brave; page text and tool results can go to your AI provider.", style = MaterialTheme.typography.bodySmall)
         Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(16.dp)) {
             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Outlined.Key, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                 Text("Keys and conversations are encrypted on this device with Android Keystore. They are excluded from backups. No analytics or credential logging.", style = MaterialTheme.typography.bodySmall)
             }
         }
-        Button(onClick = { vm.saveSettings(Settings(endpoint, model, apiKey, token)) }, enabled = ready, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Save settings") }
-        TextButton(onClick = { clear = true }, enabled = ready && (state.settings.apiKey.isNotEmpty() || state.settings.githubToken.isNotEmpty()), modifier = Modifier.fillMaxWidth()) { Text("Remove saved credentials") }
+        Button(onClick = { vm.saveSettings(Settings(endpoint, model, apiKey, token, searchKey)) }, enabled = ready, modifier = Modifier.fillMaxWidth().height(50.dp)) { Text("Save settings") }
+        TextButton(onClick = { clear = true }, enabled = ready && (state.settings.apiKey.isNotEmpty() || state.settings.githubToken.isNotEmpty() || state.settings.braveSearchKey.isNotEmpty()), modifier = Modifier.fillMaxWidth()) { Text("Remove saved credentials") }
         Text("POCKET HARNESS  /  ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Remove credentials?") }, text = { Text("You will need to enter your AI key and GitHub token again. Conversations stay on this device.") }, confirmButton = { TextButton(onClick = { vm.clearCredentials(); clear = false }) { Text("Remove") } }, dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
+    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Remove credentials?") }, text = { Text("You will need to enter your AI, GitHub, and search keys again. Conversations stay on this device.") }, confirmButton = { TextButton(onClick = { vm.clearCredentials(); clear = false }) { Text("Remove") } }, dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
 }
 
 @Composable

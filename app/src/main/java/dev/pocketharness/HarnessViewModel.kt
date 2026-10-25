@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-enum class Page { Chat, Repositories, Settings, Review }
+enum class Page { Chat, Repositories, Agent, Settings, Review }
 
 data class HarnessState(
     val loading: Boolean = true,
@@ -49,7 +49,7 @@ class HarnessViewModel internal constructor(
     private val ai: ChatService,
     private val github: GitHubClient,
 ) : AndroidViewModel(application) {
-    constructor(application: Application) : this(application, Vault(application), AiClient(), GitHubClient())
+    constructor(application: Application) : this(application, (application as? HarnessApplication)?.vault ?: Vault(application), AiClient(), GitHubClient())
     private val mutable = MutableStateFlow(HarnessState())
     val state = mutable.asStateFlow()
     private var work: Job? = null
@@ -123,7 +123,7 @@ class HarnessViewModel internal constructor(
                 previewFile = if (sameToken) it.previewFile else null)
         }
     }
-    fun clearCredentials() = saveSettings(state.value.settings.copy(apiKey = "", githubToken = ""))
+    fun clearCredentials() = saveSettings(state.value.settings.copy(apiKey = "", githubToken = "", braveSearchKey = ""))
 
     fun send(text: String) = task("Streaming response") {
         if (text.isBlank()) throw UserFacingException("Write a message first.")

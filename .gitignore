@@ -15,3 +15,5 @@ replay_*.log
 *.keystore
 .env
 .env.*
+__pycache__/
+*.pyc

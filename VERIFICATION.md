@@ -1,69 +1,66 @@
-# Verification — 0.1.1 personal preview (24 October 2026)
+# Verification — 0.2.0 personal preview (25 October 2026)
 
-## Build and checks
+## Build and local checks
 
-The final source was checked with:
+The completed source was checked with:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --console=plain
+python -m unittest discover -s tests -v
 ```
 
-Result: **BUILD SUCCESSFUL**. The final build log is `artifacts/release-v0.1.1-build.log`. See [REVIEW.md](REVIEW.md) for findings and fixes.
+Result: **BUILD SUCCESSFUL**. The main build completed in 9m 36s; the final source/asset synchronization build completed in 2m 39s with unchanged Kotlin/test outputs reused. Logs are `artifacts/release-v0.2.0-build.log`, `artifacts/release-v0.2.0-final-build.log`, and `artifacts/release-v0.2.0-worker-tests.log` in the original workspace. See [REVIEW.md](REVIEW.md) for review findings and [TERMUX.md](TERMUX.md) for setup and execution limits.
 
 | Check | Result |
 | --- | --- |
-| AI/TLS/SSE/cancellation/error tests | 7 passed |
-| GitHub publication/concurrency/file tests | 7 passed |
-| Chat setup/save/cancel/retry/interruption tests | 7 passed |
-| Edit policy/context/endpoint/diff tests | 9 passed |
-| Total local unit tests | **30 passed, 0 failed** |
-| Android lint | **0 errors, 14 warnings** |
+| Agent loop/protocol/policy/recovery/redaction/decoder tests | 10 passed |
+| Agent TLS streaming/cancel/search/web tests | 6 passed |
+| Existing chat/provider/GitHub/review regression tests | 30 passed |
+| Total Android local unit tests | **46 passed, 0 failed** |
+| Portable Python worker tests | **13 passed, 1 skipped, 0 failed** |
+| Android lint | **0 errors, 17 warnings** |
 | Debug application APK | Built |
-| Instrumentation APK | Built |
-| APK signature | Verified, APK Signature Scheme v2 |
-| On-device instrumentation execution | Unverified — emulator ADB authorization unavailable |
-| Representative app screenshot | Unavailable |
+| Instrumentation APK | Built; execution unverified |
+| APK signature | Verified, Signature Scheme v2; same certificate as 0.1.1 |
+| APK worker/setup assets | Byte-for-byte match with tested source |
+| Real Android/Termux/provider workflow | **Unverified** |
 
-The lint warnings are version-update notices for deliberately pinned dependencies and Gradle. No lint baseline or error suppression was added. Reports are under `app/build/reports/`; XML unit results are under `app/build/test-results/testDebugUnitTest/`.
+Lint warnings comprise 14 pinned dependency/Gradle version notices, two intentional official Termux path warnings, and one optional Android KTX style suggestion. No lint baseline/error suppression was added. The compiler also reports existing-compatible notification/clipboard deprecations and a redundant exhaustive `when` branch. Reports are under `app/build/reports/` and unit XML under `app/build/test-results/testDebugUnitTest/`.
+
+The Python suite executes actual child processes and temporary local Git repositories: stdout/stderr/exit status, bounded output, timeout, closed-pipe completion, pre-start cancellation, command-line JSON envelopes, Unicode file slices, conflict-safe edits, credential/path rejection, exact repository boundaries, commits, unrelated staged-file refusal and changed-remote refusal. The symlink-creation test is skipped because this Windows account cannot create symlinks. Linux `/proc` identity checks/process-group cancellation are not exercised on Windows.
+
+The Android network fixtures use local TLS with explicit loopback hostnames and matching certificates, retaining certificate validation. They exercise real streamed request parsing, function schemas, tool results/IDs, unsupported models, cancellation, separate Brave authentication, HTML extraction and private redirects. No paid provider call, real key, actual Termux command or external application Git push was used in these tests.
 
 ## Installable artifact
 
-- Release copy: `artifacts/PocketHarness-0.1.1-debug.apk`
-- Checksum: `artifacts/PocketHarness-0.1.1-debug.apk.sha256`
+- Release copy: `artifacts/PocketHarness-0.2.0-debug.apk`
+- Checksum: `artifacts/PocketHarness-0.2.0-debug.apk.sha256`
 - Gradle output: `app/build/outputs/apk/debug/app-debug.apk`
 - Instrumentation output: `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`
 - Application ID: `dev.pocketharness`
-- Version: `0.1.1` (2)
-- Minimum Android API: 26; target / compile API: 36.
-- APK size: 19,012,068 bytes.
-- Included native architectures: arm64-v8a, armeabi-v7a, x86, x86_64.
-- SHA-256: `ab3257ef769fc65880b20dd4322b615593a743c328fb5b95cef7ac4e86180127`
-- Signing certificate SHA-256: `3f770003c22a1dcf52f797ede1aee4942927be089e2df8f9efaa5c8b0e42a298`.
-- The signing certificate matches the earlier 0.1.0 APK, preserving eligibility for an in-place update from that build.
+- Version: **0.2.0 (3)**
+- Minimum / target / compile API: **26 / 36 / 36**
+- APK size: **19,472,456 bytes**
+- Architectures: arm64-v8a, armeabi-v7a, x86, x86_64
+- SHA-256: `6a62e99bd16d423e2f2c7820b61ce5bd35f4a2d61f5ee7e29b9a8db0103a372d`
+- Signing certificate SHA-256: `3f770003c22a1dcf52f797ede1aee4942927be089e2df8f9efaa5c8b0e42a298`
 
-Signature details are in `artifacts/release-v0.1.1-signature.log`. This is a **debug-signed personal preview**, not a production or Play Store release. The Gradle distribution has a checksum pinned in the wrapper properties, obtained from the official Gradle distribution service.
+The certificate matches the 0.1.1 build, preserving eligibility for an in-place update. Signature details are in `artifacts/release-v0.2.0-signature.log`. Packaged `harness_runner.py` and `setup_termux.sh` were compared against the final source; the jsoup license is retained in the APK. This is a **debug-signed personal preview**, not a production/Play Store release. The signing keystore stays private and is not a release asset.
 
 ## Phone delivery
 
-- Tag: `v0.1.1`.
-- [Release page](https://github.com/sbf-developer/ai-harness-android-phone/releases/tag/v0.1.1).
-- [Direct APK download](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.1.1/PocketHarness-0.1.1-debug.apk).
-- [SHA-256 checksum](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.1.1/PocketHarness-0.1.1-debug.apk.sha256).
+- Source branch: `codex/initial-android-app`; tag: `v0.2.0`.
+- [Release page](https://github.com/sbf-developer/ai-harness-android-phone/releases/tag/v0.2.0).
+- [Direct APK](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.2.0/PocketHarness-0.2.0-debug.apk).
+- [SHA-256 checksum](https://github.com/sbf-developer/ai-harness-android-phone/releases/download/v0.2.0/PocketHarness-0.2.0-debug.apk.sha256).
+- [Termux setup and authority guide](TERMUX.md).
 
-The repository is public. APKs and checksums are distributed as GitHub Release assets, with no keys, signing keystores, or binary build outputs committed to the source tree. Phone installation and first-use steps are at the top of README.md. Upload and anonymous download verification are performed after source/tag publication; release asset metadata provides the published size and digest.
+The public release distributes APK/checksum assets separately from source. Draft asset size/digest and anonymous published download checks are performed after source/tag publication; the resulting local delivery record is `artifacts/release-v0.2.0-download-verification.json`. Source uploads and this app's own release publication are separate from the application's unverified phone-side Git/provider workflows.
 
-## Runtime verification
+## Device limitations and next checks
 
-The instrumentation APK compiled successfully, but its tests **were not run**. The existing Android API 36 AVD was started in read-only mode with snapshots disabled. After boot it showed a system Bluetooth crash dialog and an ADB authorization prompt. One targeted attempt to clear the blocker did not produce an authorized connection. Emulator repair was stopped, and the task-owned emulator was shut down without changing the original AVD data.
+No working authorized Android device was available. The existing emulator had previously failed ADB authorization and shown a Bluetooth system crash. Further emulator repair was not attempted. Instrumentation tests compile but **were not run**. Native navigation/layout, Android Keystore execution and persistence, Termux installation/custom permission/external-command setting, mutable callback delivery, foreground/background lifecycle, Stop/process groups, real provider function compatibility, phone Git SSH credentials and real Brave account access remain unverified. No representative app screenshot is supplied.
 
-Consequently, native navigation, actual Android Keystore execution, fresh-IV/tamper checks on Android, and on-device conversation persistence remain **unverified**. The compiled instrumentation suite is ready to run on a working emulator or connected test phone using the command in README.md. No representative app screenshot is available. The ignored `artifacts/Screenshot_*.png` files are emulator troubleshooting captures, not screenshots of Pocket Harness.
+On a working test phone, install this APK, follow TERMUX.md, run the actual connection check, inspect a disposable project, edit a file, execute a harmless command/test, and exercise approval/deny/Stop/late-result recovery before granting full task authority. Verify Git authentication manually in Termux and inspect the exact push destination. Interrupted/unknown commands must never be assumed to have had no side effects.
 
-## Scope of verification
-
-No real AI keys or GitHub tokens were requested or used. Provider and GitHub network behavior was tested against a local mock server, including TLS, cancellation, changed-base checks before publication, a base changing while tree/commit objects are created, existing-branch rejection, original Git parent/file mode preservation, and a base advancing immediately after publication.
-
-Live provider authentication, live GitHub permissions/organization policies, and an in-app commit to a real repository remain unverified. This application verification used local mocks and did not exercise external repository writes. A later, explicitly authorized push of this app's source code is separate from these application checks. The app's publication path is implemented and requires explicit in-app review approval.
-
-The project folder was empty. No applicable AGENTS.md was found. Git initially resolved to the Windows user home directory, which was left untouched. For the subsequently authorized source publication, a dedicated Git repository was initialized inside this Android project and its boundary verified before staging. All implementation files are inside this project. Generated APKs, verification logs, screenshots, local SDK configuration, build caches, credentials, and temporary task files are excluded from source control; artifact paths above refer to the original local verification workspace.
-
-The first extended check hit host disk and memory limits. The final build succeeded after limiting Gradle to one worker and compiling Kotlin in-process with a 1.5 GiB heap. No existing user files or AVD data were deleted. Temporary bootstrap and compiler diagnostic files remain ignored in the project because automatic approval review rejected their cleanup with the reason "blocked by policy".
+The application uses a dedicated Git repository inside this project; the Windows home repository was left untouched. APKs, caches, SDK paths, keystores, credentials, logs and temporary files are ignored. The 8 GB development PC uses one Gradle worker and a 1.5 GiB in-process compiler heap. Previously ignored bootstrap/crash/troubleshooting files remain local; no cleanup of unrelated user data was attempted.

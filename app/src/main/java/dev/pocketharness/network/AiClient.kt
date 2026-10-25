@@ -40,9 +40,9 @@ object ProviderValidation {
     fun settings(settings: Settings): Settings {
         val endpoint = endpoint(settings.endpoint)
         if (settings.model.isBlank() || settings.model.length > 200) throw UserFacingException("Enter a model ID.")
-        if (listOf(settings.apiKey, settings.githubToken).any { it.contains('\n') || it.contains('\r') })
+        if (listOf(settings.apiKey, settings.githubToken, settings.braveSearchKey).any { it.contains('\n') || it.contains('\r') })
             throw UserFacingException("Keys cannot contain line breaks.")
-        return settings.copy(endpoint = endpoint, model = settings.model.trim(), apiKey = settings.apiKey.trim(), githubToken = settings.githubToken.trim())
+        return settings.copy(endpoint = endpoint, model = settings.model.trim(), apiKey = settings.apiKey.trim(), githubToken = settings.githubToken.trim(), braveSearchKey = settings.braveSearchKey.trim())
     }
 }
 

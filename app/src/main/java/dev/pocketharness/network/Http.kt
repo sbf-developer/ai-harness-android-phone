@@ -28,7 +28,7 @@ class Http(val client: OkHttpClient = defaultClient()) {
             .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build()
     }
 
-    suspend fun <T> read(request: Request, block: suspend (Response) -> T): T = coroutineScope {
+    suspend fun <T> read(request: Request, acceptRedirects: Boolean = false, block: suspend (Response) -> T): T = coroutineScope {
         val call = client.newCall(request)
         // Cancel blocking socket reads immediately, including after headers have arrived.
         val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -37,7 +37,7 @@ class Http(val client: OkHttpClient = defaultClient()) {
         try {
             withContext(Dispatchers.IO) {
                 call.execute().use { response ->
-                    if (!response.isSuccessful) throw HttpFailure(response.code)
+                    if (!response.isSuccessful && !(acceptRedirects && response.code in setOf(301, 302, 303, 307, 308))) throw HttpFailure(response.code)
                     block(response)
                 }
             }

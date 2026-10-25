@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <queries><package android:name="com.termux" /></queries>
     <application
+        android:name=".HarnessApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -10,6 +16,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PocketHarness"
         android:usesCleartextTraffic="false">
+        <service android:name=".agent.AgentService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <receiver android:name=".agent.TermuxResultReceiver" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

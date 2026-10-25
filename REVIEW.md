@@ -1,4 +1,22 @@
-# Final review for 0.1.1
+# Final review for 0.2.0
+
+The Agent tab adds actual on-phone execution to the original chat/GitHub workflow. Review covered the official Termux intent and callback contract, streamed function assembly, model/tool orchestration, file conflict checks, Git destinations, permissions, interruption recovery, credentials and bounded foreground work. This is source/local-test review; live phone/Termux behavior remains unverified.
+
+## Agent findings addressed
+
+- Complete tool calls and pending command identities are saved before dispatch. Incomplete streams, malformed calls and unknown callbacks cannot trigger tools. Cold starts mark work interrupted/unknown without replay; late callbacks only record results. A new task uses a bounded checkpoint and fresh grants.
+- Dispatch failures distinguish commands that were not sent from outcomes unknown after dispatch. Unknown writes block subsequent writes until checked or explicitly acknowledged. Connection checks and read-only manual actions do not silently acknowledge unknown writes. Duplicate callback acceptance is checked again under the journal mutex.
+- Explicit task authority gates shell/destructive/network actions; task grants expire on completion. Git network approvals display the resolved URL and HEAD and recheck them before execution. The working directory is explicitly described as a structured-tool boundary, not an OS sandbox.
+- File replacement checks full SHA-256, uses atomic replacement and preserves mode. Partial previews carry full hashes; the manual editor cannot replace a file using a partial/redacted preview. Unique partial edits fail on stale hashes or ambiguous text. Symlink components and common credential/Git metadata paths are excluded from structured file access.
+- Structured Git verifies the exact repository root, rejects embedded credentials and unrelated staged paths, scans explicit commit files and rechecks hashes. Hooks/signing/external diff/textconv are disabled; push is non-force and explicitly scoped. Empty repositories support diff/fetch preflight. Failed commits can leave selected files staged; no automatic undo is claimed.
+- Runner stdout/stderr, files, web downloads, callback payloads, model turns/tools/context and task duration are bounded. A process closing stdout/stderr is still allowed to finish until its deadline. Cancellation uses tracked process groups and PID start-time checks on Linux; escaped processes can survive and side effects are not rolled back.
+- App API/GitHub/Brave keys are never injected into Termux. Input checks/output redaction cover saved values, common encodings, JSON escaping and recognizable credentials. JSON structure survives redaction. Redaction is explicitly best-effort for unknown/transformed Termux secrets.
+- Public URL fetch validates HTTPS redirects and DNS targets and extracts real readable text. General search uses a separate Brave API key; its tool is absent without that key. Provider/GitHub/search requests refuse credential-bearing redirects. No fake search/terminal success or provider-built-in search is assumed.
+- A shared Application Vault serializes Keystore creation and file writes across chat, service and receiver. User-started work owns a non-sticky foreground service; non-exported unique one-shot callbacks cannot restart the agent. Rapid repeated start gestures cannot prepare concurrent tasks.
+
+See [TERMUX.md](TERMUX.md) for setup and execution tradeoffs and [VERIFICATION.md](VERIFICATION.md) for actual checks/artifacts. Real device permissions/callbacks, foreground lifecycle, POSIX process groups, Android Keystore and account authentication still need a working phone. No paid AI call or real application Git push was used in verification.
+
+## Prior chat/GitHub review (0.1.1)
 
 Reviewed the actual Kotlin/Compose implementation, first-use setup, streaming and cancellation, persistence and credential handling, selected repository context, proposal validation, and publication to new branches.
 
@@ -20,6 +38,6 @@ Only selected existing text files are eligible for edits. Duplicate, unselected,
 
 ## Remaining limits
 
-This is a debug-signed personal preview. The APK is not presented as production-ready or available on the Play Store. Android navigation, Keystore execution, and device persistence remain unverified because the local emulator's ADB authorization failed; no additional emulator repair was attempted for this release. No real paid AI requests or in-app GitHub commits were made. Provider compatibility and actual token/organization permissions still require the user's account and device. Edits modify selected existing files; creation, deletion, shell execution, builds, and remote workspaces are outside scope.
+This remains a debug-signed personal preview. The APK is not presented as production-ready or available on the Play Store. Android navigation, Keystore execution and device persistence remain unverified because the local emulator's ADB authorization failed; no further emulator repair was attempted. Provider compatibility and actual token/organization permissions still require the user's account and device. The original Code/Review flow still modifies selected existing GitHub files; the new Agent flow separately adds local files, shell execution, builds and Git through Termux.
 
 See [VERIFICATION.md](VERIFICATION.md) for the checks and release artifact details. The small storage/chat interfaces added for regression testing exercise orchestration failures without keys or network access; they do not replace the Keystore implementation in the installed app.

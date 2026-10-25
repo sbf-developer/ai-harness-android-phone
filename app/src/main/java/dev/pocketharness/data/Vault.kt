@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
+import dev.pocketharness.agent.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -17,7 +18,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Versioned AES-GCM envelope. Key material never leaves Android Keystore; files never enter backup. */
-class Vault(context: Context) : LocalStore {
+class Vault(context: Context) : LocalStore, AgentStore {
     private val root = context.noBackupFilesDir
     private val mutex = Mutex()
     private val alias = "pocket-harness-v1"
@@ -67,5 +68,11 @@ class Vault(context: Context) : LocalStore {
     override suspend fun saveConversations(items: List<Conversation>) = withContext(Dispatchers.IO) { mutex.withLock {
         write("conversations.enc", AppJson.encodeToString(items))
     } }
-    suspend fun clearCredentials() = saveSettings(loadSettings().copy(apiKey = "", githubToken = ""))
+    suspend fun clearCredentials() = saveSettings(loadSettings().copy(apiKey = "", githubToken = "", braveSearchKey = ""))
+    override suspend fun loadAgent(): AgentJournal = withContext(Dispatchers.IO) { mutex.withLock {
+        read("agent.enc")?.let { AppJson.decodeFromString<AgentJournal>(it) } ?: AgentJournal()
+    } }
+    override suspend fun saveAgent(journal: AgentJournal) = withContext(Dispatchers.IO) { mutex.withLock {
+        write("agent.enc", AppJson.encodeToString(journal))
+    } }
 }

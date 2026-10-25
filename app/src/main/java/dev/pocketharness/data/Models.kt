@@ -13,6 +13,7 @@ data class Settings(
     val model: String = "deepseek-flash",
     val apiKey: String = "",
     val githubToken: String = "",
+    val braveSearchKey: String = "",
 ) {
     override fun toString(): String = "Settings(model=$model, credentials=<redacted>)"
 }
